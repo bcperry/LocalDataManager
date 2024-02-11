@@ -1,0 +1,10 @@
+*.pt
+*.iml
+*.xml
+.ipynb_checkpoints
+*.pyc
+*.tar
+*.png
+*.csv
+.venv
+/data
