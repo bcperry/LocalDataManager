@@ -195,6 +195,29 @@ class FileManager:
         else:
             return False
 
+    def get_names(self):
+        """
+        Provides functionality to get all filenames.
+
+        Parameters:
+            None:
+
+        Returns:
+            list of all managed filenames 
+
+        """
+        # Creating cursor object using connection object
+        cursor = self.connection.cursor()
+            
+        # executing our sql query
+        cursor.execute("""SELECT name FROM files;""")
+            
+        # create a list of all hashes
+        namelist = [i[0] for i in cursor.fetchall()]
+
+        return namelist
+
+
     def check_names(self, filename):
         """
         Provides functionality to check if a file with the same name exists.
@@ -206,14 +229,8 @@ class FileManager:
             boolean 
 
         """
-        # Creating cursor object using connection object
-        cursor = self.connection.cursor()
-            
-        # executing our sql query
-        cursor.execute("""SELECT name FROM files;""")
-            
         # create a list of all hashes
-        namelist = [i[0] for i in cursor.fetchall()]
+        namelist = self.get_names()
 
         if filename in namelist:
             return True
@@ -259,26 +276,24 @@ class FileManager:
                 filename = 'V'+ version + filename[4:]
             # otherwise add a version number
             else:
-                filename = 'V002_' + file.name
+                filename = 'V002_' + filename
 
-        else:
+        path = os.path.join(self.base_path, data_level)
 
-            path = os.path.join(self.base_path, data_level)
+        try:
+            with open(os.path.join(path, filename),"wb") as f:
+                while True:
+                    data = file.read(self.BUF_SIZE)
+                    if not data:
+                        break
+                    f.write(data)
 
-            try:
-                with open(os.path.join(path, filename),"wb") as f:
-                    while True:
-                        data = file.read(self.BUF_SIZE)
-                        if not data:
-                            break
-                        f.write(data)
-
-                # with the file saved, add it to the database
-                self.insert_file_into_files(name=filename, hash=hash, location=path)
-                return True
-            except Exception as err:
-                logging.error(err)
-                return err
+            # with the file saved, add it to the database
+            self.insert_file_into_files(name=filename, hash=hash, location=path)
+            return True
+        except Exception as err:
+            logging.error(err)
+            return err
 
 
 if __name__ == '__main__':
