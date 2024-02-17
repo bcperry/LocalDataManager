@@ -5,7 +5,9 @@ import re
 import sqlite3
 import hashlib
 import logging
+import pandas as pd
 from sqlite3 import Error
+
 
 class FileManager: 
     """
@@ -59,6 +61,9 @@ class FileManager:
         except Error as e:
             logging.info(e)
  
+    def close_connection(self):
+        self.connection.close()
+
     def create_management_table(self, SQL=None):
         """ create a file management table in the SQLite database
         :param SQL: SQL command to create the table
@@ -175,7 +180,6 @@ class FileManager:
 
         return hashlist
 
-
     def check_hashes(self, hash):
         """
         Provides functionality to check if a file has been hashed previously.
@@ -217,7 +221,6 @@ class FileManager:
 
         return namelist
 
-
     def check_names(self, filename):
         """
         Provides functionality to check if a file with the same name exists.
@@ -236,6 +239,29 @@ class FileManager:
             return True
         else:
             return False
+
+    def get_managed_files_df(self):
+        """
+        Provides functionality to get data on managed files.
+
+        Parameters:
+            None
+
+        Returns:
+            dataframe of all managed file information 
+
+        """
+        # Creating cursor object using connection object
+        cursor = self.connection.cursor()
+            
+        # executing our sql query
+        cursor.execute("""SELECT * FROM files;""")
+            
+        # create a list of all hashes
+        files = cursor.fetchall()
+        df = pd.DataFrame(files, columns=['filename', 'hash', 'location'])
+
+        return df
 
     def save_file(self, file, data_level):
         """
