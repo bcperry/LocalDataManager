@@ -1,6 +1,7 @@
 '''A sample data management module'''
 
 import os
+import re
 import sqlite3
 import hashlib
 import logging
@@ -25,7 +26,7 @@ class FileManager:
 
     """
 
-    def __init__(self, base_path, db_file):
+    def __init__(self, base_path=None, db_file='filemanager.db', data_arch='medallion'):
         """
         Constructs all the necessary attributes for the file manager object.
 
@@ -33,19 +34,31 @@ class FileManager:
         ----------
         :base_path: the path to the data management system
         :db_file: the name of the sqlite database used to manage the files
+        :data_arch: [medallion, levels] data scheme for which to create directories
         """
+        if base_path == None:
+            self.base_path = os.path.join('data','managed_data')
+        else:
+            self.base_path = base_path
 
-        self.base_path = base_path
+        # An arbitrary (but fixed) buffer size
+        # 65536 = 65536 bytes = 64 kilobytes
+        self.BUF_SIZE = 65536
+
+        self.data_arch = data_arch
+        if self.data_arch == 'medallion':
+            self.data_levels = ['bronze', 'silver', 'gold']
+        elif self.data_arch =='levels':
+            self.data_levels = ['level_1', 'level_2', 'level_3']
 
         try:
             self.create_management_folders()
-            connection = sqlite3.connect(os.path.join(base_path,db_file))
+            connection = sqlite3.connect(os.path.join(base_path, db_file))
             self.connection = connection
             self.create_management_table()
         except Error as e:
             logging.info(e)
-
-    
+ 
     def create_management_table(self, SQL=None):
         """ create a file management table in the SQLite database
         :param SQL: SQL command to create the table
@@ -70,29 +83,25 @@ class FileManager:
 
         return True
 
-    def create_management_folders(self, base_path=r'data/managed_data', data_arch='medallion'):
+    def create_management_folders(self):
         """ create the folders required to manage the files
         :param path: string filepath in which to create the management structure
         :param data_arch: [medallion, levels] data scheme for which to create
 
         :return: Boolean
         """
-        if data_arch == 'medallion':
-            levels = ['bronze', 'silver', 'gold']
-        elif data_arch =='levels':
-            levels = ['level_1', 'level_2', 'level_3']
 
-        if os.path.exists(base_path):
-            logging.info(f'{base_path} exists')
+        if os.path.exists(self.base_path):
+            logging.info(f'{self.base_path} exists')
         
-        for level in levels:
-            if os.path.exists(os.path.join(base_path,level)):
-                logging.info(f'{os.path.join(base_path,level)} exists')
+        for level in self.data_levels:
+            if os.path.exists(os.path.join(self.base_path,level)):
+                logging.info(f'{os.path.join(self.base_path,level)} exists')
             else:
                 try:
-                    os.makedirs(os.path.join(base_path,level))
+                    os.makedirs(os.path.join(self.base_path,level))
                 except:
-                    logging.error(f'Failed to create {os.path.join(base_path,level)}')
+                    logging.error(f'Failed to create {os.path.join(self.base_path,level)}')
                     return False
         return True
 
@@ -120,20 +129,16 @@ class FileManager:
             The sha256 hash in hex format 
 
         """
-
-        # A arbitrary (but fixed) buffer size
-        # 65536 = 65536 bytes = 64 kilobytes
-        BUF_SIZE = 65536
-
         # Initializing the sha256() method
         sha256 = hashlib.sha256()
 
         # Opening the file provided
         while True:
-            data = file.read()
+            data = file.read(self.BUF_SIZE)
 
             # True if eof = 1
             if not data:
+                file.seek(0)
                 break
 
             # Passing that data to that sh256 hash 
@@ -148,15 +153,15 @@ class FileManager:
         # the output in hexadecimal format
         return sha256.hexdigest()
 
-    def check_hashes(self, hash):
+    def get_hashes(self):
         """
-        Provides functionality to check if a file has been hashed previously.
+        Provides functionality to get all previously hashed files.
 
         Parameters:
-            hash:
+            None
 
         Returns:
-            boolean 
+            List of all hashes 
 
         """
         # Creating cursor object using connection object
@@ -168,53 +173,112 @@ class FileManager:
         # create a list of all hashes
         hashlist = [i[0] for i in cursor.fetchall()]
 
+        return hashlist
+
+
+    def check_hashes(self, hash):
+        """
+        Provides functionality to check if a file has been hashed previously.
+
+        Parameters:
+            hash:
+
+        Returns:
+            boolean 
+
+        """
+        # create a list of all hashes
+        hashlist = self.get_hashes()
+
         if hash in hashlist:
             return True
         else:
             return False
 
-    def check_names(self, name):
-        pass
-
-    def save_uploadedfile(self, uploadedfile, data_management, level):
+    def check_names(self, filename):
         """
-        Provides functionality to save documents per the medallion data management
+        Provides functionality to check if a file with the same name exists.
+
+        Parameters:
+            filename:
+
+        Returns:
+            boolean 
+
+        """
+        # Creating cursor object using connection object
+        cursor = self.connection.cursor()
+            
+        # executing our sql query
+        cursor.execute("""SELECT name FROM files;""")
+            
+        # create a list of all hashes
+        namelist = [i[0] for i in cursor.fetchall()]
+
+        if filename in namelist:
+            return True
+        else:
+            return False
+
+    def save_file(self, file, data_level):
+        """
+        Provides functionality to save documents per the data management
         system.
 
         Parameters:
             file:
-            data_management:
-            level:
+            data_level:
 
         Returns:
             true or error
         """
 
+        if data_level not in self.data_levels:
+            logging.error(f'{data_level} not in {self.data_levels}')
+            return False
+
+        filename = file.name.split('/')[-1]
         # check the management system for the file
-        hash = self.hash_file(uploadedfile)
-        file_managed = self.check_hashes(hash)
-        if file_managed:
-            return f"{uploadedfile.name} already managed."
+        hash = self.hash_file(file)
+        hash_managed = self.check_hashes(hash)
 
         # check if a file with this name already exists, if the hash is different
-        file_name = self.check_names(uploadedfile.name)
+        file_managed = self.check_names(filename)
 
-        try:
-            path = data_management['base_filepath'] + "/" + medallion
+        if hash_managed:
+            logging.info(f"{filename} already managed.")
+            return f"{filename} already managed."
+        
+        elif file_managed and not hash_managed:
+            # if the file already exists, check for a version number and increment
+            pattern = re.compile(r"V[0-9]+_", re.IGNORECASE)
+            
+            # if the file is already versioned, increment the version
+            if pattern.match(filename):
+                version = "{:03d}".format(int(filename[1:4])+1)
+                filename = 'V'+ version + filename[4:]
+            # otherwise add a version number
+            else:
+                filename = 'V002_' + file.name
 
-        except:
-            return {"data_management": data_management, 
-                    "message": "Failed to parse management json"}
+        else:
 
+            path = os.path.join(self.base_path, data_level)
 
-        try:
-            with open(os.path.join(path, file_name),"wb") as f:
-                f.write(uploadedfile.getbuffer())
+            try:
+                with open(os.path.join(path, filename),"wb") as f:
+                    while True:
+                        data = file.read(self.BUF_SIZE)
+                        if not data:
+                            break
+                        f.write(data)
 
-            return True
-        except Exception as err:
-            logging.error(err)
-            return err
+                # with the file saved, add it to the database
+                self.insert_file_into_files(name=filename, hash=hash, location=path)
+                return True
+            except Exception as err:
+                logging.error(err)
+                return err
 
 
 if __name__ == '__main__':
