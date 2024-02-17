@@ -6,7 +6,10 @@ import sqlite3
 import hashlib
 import logging
 import pandas as pd
+from io import BytesIO
 from sqlite3 import Error
+
+from typing import Union, Literal
 
 
 class FileManager: 
@@ -28,7 +31,7 @@ class FileManager:
 
     """
 
-    def __init__(self, base_path=None, db_file='filemanager.db', data_arch='medallion'):
+    def __init__(self, base_path: os.PathLike = None, db_file:str = 'filemanager.db', data_arch:Union[Literal['medallion'], Literal['levels']] = 'medallion'):
         """
         Constructs all the necessary attributes for the file manager object.
 
@@ -64,7 +67,7 @@ class FileManager:
     def close_connection(self):
         self.connection.close()
 
-    def create_management_table(self, SQL=None):
+    def create_management_table(self, SQL:str=None):
         """ create a file management table in the SQLite database
         :param SQL: SQL command to create the table
         :param connection: a database connection
@@ -110,7 +113,7 @@ class FileManager:
                     return False
         return True
 
-    def insert_file_into_files(self, name, hash, location):
+    def insert_file_into_files(self, name: str, hash: str, location: os.PathLike):
         """
         Create a new file into the files table
         :param file:
@@ -123,7 +126,7 @@ class FileManager:
         self.connection.commit()
         return cur.lastrowid
 
-    def hash_file(self, file):
+    def hash_file(self, file: BytesIO):
         """
         Provides hashing functionality.
 
@@ -180,7 +183,7 @@ class FileManager:
 
         return hashlist
 
-    def check_hashes(self, hash):
+    def check_hashes(self, hash: str):
         """
         Provides functionality to check if a file has been hashed previously.
 
@@ -221,7 +224,7 @@ class FileManager:
 
         return namelist
 
-    def check_names(self, filename):
+    def check_names(self, filename: str):
         """
         Provides functionality to check if a file with the same name exists.
 
@@ -263,7 +266,7 @@ class FileManager:
 
         return df
 
-    def save_file(self, file, data_level):
+    def save_file(self, file: BytesIO, data_level: str):
         """
         Provides functionality to save documents per the data management
         system.
@@ -321,6 +324,26 @@ class FileManager:
             logging.error(err)
             return err
 
+    def save_dataframe(self, dataframe: pd.DataFrame, name: str, data_level: str):
+        """
+        Provides functionality to convert dataframes to csvs for storage in the data management
+        system.
+
+        Parameters:
+            dataframe: a dataframe to store
+            name: the name of the file
+            data_level: data level at which to store the file
+
+
+        Returns:
+            true or error
+        """
+        in_memory_fp = BytesIO()
+        dataframe.to_csv(in_memory_fp)
+        if name.split('.')[-1] != 'csv':
+            name = name + '.csv'
+        in_memory_fp.name = name
+        self.save_file(in_memory_fp, data_level)
 
 if __name__ == '__main__':
     pass
