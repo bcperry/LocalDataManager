@@ -9,4 +9,12 @@
 .venv
 /data
 *test.*
-.vscode
+.vscode/
+*tinkering*
+*__pycache__*
+
+# Egg metadata
+*.egg-info
+
+# build directory
+/dist

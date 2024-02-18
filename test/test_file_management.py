@@ -24,7 +24,7 @@ class TestFileManager(unittest.TestCase):
                 pass
         
         # stand up the file manager
-        from Data_Management.file_manager import FileManager
+        from src.LocalDataManager.file_manager import FileManager
         self.manager = FileManager(base_path= 'data', db_file='testFile.db')
         self.manager.create_management_table()
         self.manager.insert_file_into_files('name', 'hash', 'location')
@@ -32,7 +32,7 @@ class TestFileManager(unittest.TestCase):
 
     def test_import(self):
         """ Test that the Data Management module can be imported. """
-        import Data_Management
+        import src.LocalDataManager
 
     def test_create_management_table(self):
         """ Test the database connection. """

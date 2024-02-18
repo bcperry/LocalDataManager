@@ -1,4 +1,4 @@
-'''A sample data management module'''
+'''A local data management module'''
 
 import os
 import re
@@ -25,9 +25,15 @@ class FileManager:
     -------
     :create_management_table: 
     :create_management_folders:
+    insert_file_into_files:
     :hash_file:
+    :get_hashes:
     :check_hash:
-    :manage_file:
+    :get_names:
+    :check_names:
+    :get_managed_files_df:
+    :save_file:
+    :save_dataframe:
 
     """
 
