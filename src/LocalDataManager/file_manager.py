@@ -349,7 +349,8 @@ class FileManager:
         if name.split('.')[-1] != 'csv':
             name = name + '.csv'
         in_memory_fp.name = name
-        self.save_file(in_memory_fp, data_level)
+        managed = self.save_file(in_memory_fp, data_level)
+        return(managed)
 
 if __name__ == '__main__':
     pass
