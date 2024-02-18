@@ -64,7 +64,7 @@ class FileManager:
 
         try:
             self.create_management_folders()
-            connection = sqlite3.connect(os.path.join(base_path, db_file))
+            connection = sqlite3.connect(os.path.join(self.base_path, db_file))
             self.connection = connection
             self.create_management_table()
         except Error as e:
