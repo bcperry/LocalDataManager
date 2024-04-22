@@ -9,6 +9,13 @@ import pandas as pd
 from io import BytesIO
 from sqlite3 import Error
 
+# ORM for databasing 
+from .db.db_classes import Base, File
+from sqlalchemy import create_engine, select
+from sqlalchemy.pool import NullPool
+from sqlalchemy.orm import Session
+
+
 from typing import Union, Literal
 
 
@@ -37,7 +44,7 @@ class FileManager:
 
     """
 
-    def __init__(self, base_path: os.PathLike = None, db_file:str = 'filemanager.db', data_arch:Union[Literal['medallion'], Literal['levels']] = 'medallion'):
+    def __init__(self, base_path: os.PathLike = None, db_file:str = 'filemanager.db', data_arch:Union[Literal['medallion'], Literal['levels']] = 'medallion', verbose = False):
         """
         Constructs all the necessary attributes for the file manager object.
 
@@ -64,38 +71,10 @@ class FileManager:
 
         try:
             self.create_management_folders()
-            connection = sqlite3.connect(os.path.join(self.base_path, db_file))
-            self.connection = connection
-            self.create_management_table()
+            self.engine = create_engine(f"sqlite:///{os.path.join(base_path,db_file)}", echo=verbose, poolclass=NullPool)
+            Base.metadata.create_all(self.engine)
         except Error as e:
             logging.info(e)
- 
-    def close_connection(self):
-        self.connection.close()
-
-    def create_management_table(self, SQL:str=None):
-        """ create a file management table in the SQLite database
-        :param SQL: SQL command to create the table
-        :param connection: a database connection
-
-        :return: Boolean
-        """
-        if SQL is None:
-            SQL = """ CREATE TABLE IF NOT EXISTS files (
-                                                name text NOT NULL,
-                                                hash text PRIMARY KEY,
-                                                location text NOT NULL
-                                            ); """
-
-
-        try:
-            c = self.connection.cursor()
-            c.execute(SQL)
-        except Error as e:
-            logging.info(e)
-            return False
-
-        return True
 
     def create_management_folders(self):
         """ create the folders required to manage the files
@@ -125,12 +104,14 @@ class FileManager:
         :param file:
         :return: file id
         """
-        sql = ''' INSERT INTO files(name,hash,location)
-                VALUES(?,?,?) '''
-        cur = self.connection.cursor()
-        cur.execute(sql, (name, hash, location))
-        self.connection.commit()
-        return cur.lastrowid
+        with Session(self.engine) as session:
+            file = File(name=name,
+                        hash=hash,
+                        location=location
+                        )
+            session.add(file)
+            session.commit()
+        return f"{name} Managed"
 
     def hash_file(self, file: BytesIO):
         """
@@ -178,14 +159,10 @@ class FileManager:
             List of all hashes 
 
         """
-        # Creating cursor object using connection object
-        cursor = self.connection.cursor()
-            
-        # executing our sql query
-        cursor.execute("""SELECT hash FROM files;""")
-            
-        # create a list of all hashes
-        hashlist = [i[0] for i in cursor.fetchall()]
+        
+        with Session(self.engine) as session:
+            stmt = select(File.hash)
+            hashlist = list(session.scalars(stmt))
 
         return hashlist
 
@@ -219,14 +196,9 @@ class FileManager:
             list of all managed filenames 
 
         """
-        # Creating cursor object using connection object
-        cursor = self.connection.cursor()
-            
-        # executing our sql query
-        cursor.execute("""SELECT name FROM files;""")
-            
-        # create a list of all hashes
-        namelist = [i[0] for i in cursor.fetchall()]
+        with Session(self.engine) as session:
+            stmt = select(File.name)
+            namelist = list(session.scalars(stmt))
 
         return namelist
 
@@ -260,15 +232,14 @@ class FileManager:
             dataframe of all managed file information 
 
         """
-        # Creating cursor object using connection object
-        cursor = self.connection.cursor()
-            
-        # executing our sql query
-        cursor.execute("""SELECT * FROM files;""")
-            
-        # create a list of all hashes
-        files = cursor.fetchall()
-        df = pd.DataFrame(files, columns=['filename', 'hash', 'location'])
+        df = pd.read_sql_table('files', self.engine)
+        # # df = pd.read_sql_table('table_name', 'postgres:///db_name')  
+        # with Session(self.engine) as session:
+        #     stmt = select(File)
+        #     files = list(session.scalars(stmt))
+        # # Convert ORM query result to a DataFrame
+        # df = pd.DataFrame([item.to_dict() for item in files])
+        # # df = pd.DataFrame(files, columns=['filename', 'hash', 'location'])
 
         return df
 
@@ -325,7 +296,7 @@ class FileManager:
 
             # with the file saved, add it to the database
             self.insert_file_into_files(name=filename, hash=hash, location=path)
-            return True
+            return f"{filename} managed"
         except Exception as err:
             logging.error(err)
             return err

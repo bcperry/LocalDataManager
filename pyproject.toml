@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "LocalDataManager"
-version = "0.0.6"
+version = "0.1.0"
 authors = [
   { name="Blaine Perry", email="blainecperry@gmail.com" },
 ]
@@ -17,7 +17,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  "pandas"
+  "pandas",
+  "sqlalchemy"
 ]
 [project.urls]
 Homepage = "https://github.com/bcperry/LocalDataManager"
