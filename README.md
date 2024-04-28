@@ -18,13 +18,17 @@ Install using pip
 pip install LocalDataManager
 ```
 
-
 ## Dependencies
 
-``LocalDataManager`` only has one dependancy:
+``LocalDataManager`` only has two dependancies:
 
 [Pandas - Adds support for managing DataFrames as Files](https://pandas.pydata.org)
 
+[SQLAlchemy - Simplifies data management](https://www.sqlalchemy.org/)
+
+
+## Usage
+Examples can be found in the [examples](https://github.com/bcperry/LocalDataManager/tree/master/examples) directory.
 
 ## License
 [MIT](LICENSE)

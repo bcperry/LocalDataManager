@@ -2,7 +2,6 @@
 
 import os
 import re
-import sqlite3
 import hashlib
 import logging
 import pandas as pd
@@ -10,13 +9,13 @@ from io import BytesIO
 from sqlite3 import Error
 
 # ORM for databasing 
-from .db.db_classes import Base, File
+from .db.db_classes import Base, File, Metadata
 from sqlalchemy import create_engine, select
 from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import Session
 
 
-from typing import Union, Literal
+from typing import List, Union, Literal
 
 
 class FileManager: 
@@ -98,7 +97,7 @@ class FileManager:
                     return False
         return True
 
-    def insert_file_into_files(self, name: str, hash: str, location: os.PathLike):
+    def insert_file_into_files(self, name: str, hash: str, file_metadata: List[Metadata], location: os.PathLike):
         """
         Create a new file into the files table
         :param file:
@@ -107,7 +106,8 @@ class FileManager:
         with Session(self.engine) as session:
             file = File(name=name,
                         hash=hash,
-                        location=location
+                        location=location,
+                        file_metadata=file_metadata
                         )
             session.add(file)
             session.commit()
@@ -221,7 +221,7 @@ class FileManager:
         else:
             return False
 
-    def get_managed_files_df(self):
+    def get_managed_files_df(self, include_metadata: bool = True):
         """
         Provides functionality to get data on managed files.
 
@@ -232,18 +232,14 @@ class FileManager:
             dataframe of all managed file information 
 
         """
-        df = pd.read_sql_table('files', self.engine)
-        # # df = pd.read_sql_table('table_name', 'postgres:///db_name')  
-        # with Session(self.engine) as session:
-        #     stmt = select(File)
-        #     files = list(session.scalars(stmt))
-        # # Convert ORM query result to a DataFrame
-        # df = pd.DataFrame([item.to_dict() for item in files])
-        # # df = pd.DataFrame(files, columns=['filename', 'hash', 'location'])
+        files_df = pd.read_sql_table('files', self.engine)
+        if include_metadata:
+            meta_df = pd.read_sql_table('file_metadata', self.engine)
+            files_df = pd.merge(files_df, meta_df, left_on='hash', right_on='hash')
+            files_df.drop('id', axis=1, inplace=True)
+        return files_df
 
-        return df
-
-    def save_file(self, file: BytesIO, data_level: str):
+    def save_file(self, file: BytesIO, data_level: str, metadata: dict):
         """
         Provides functionality to save documents per the data management
         system.
@@ -251,10 +247,12 @@ class FileManager:
         Parameters:
             file:
             data_level:
+            metadata:
 
         Returns:
             true or error
         """
+
 
         if data_level not in self.data_levels:
             logging.error(f'{data_level} not in {self.data_levels}')
@@ -264,6 +262,16 @@ class FileManager:
         # check the management system for the file
         hash = self.hash_file(file)
         hash_managed = self.check_hashes(hash)
+
+        # create the metadata to add to the file
+        metadata_list = []
+        if metadata is not None:
+            for metadata_key, metadata_value in metadata.items():
+                metadata_list.append(
+                    Metadata(hash=hash, 
+                            metadata_key=metadata_key, 
+                            metadata_value=metadata_value)
+                    )
 
         # check if a file with this name already exists, if the hash is different
         file_managed = self.check_names(filename)
@@ -295,7 +303,7 @@ class FileManager:
                     f.write(data)
 
             # with the file saved, add it to the database
-            self.insert_file_into_files(name=filename, hash=hash, location=path)
+            self.insert_file_into_files(name=filename, hash=hash, location=path, file_metadata=metadata_list)
             return f"{filename} managed"
         except Exception as err:
             logging.error(err)

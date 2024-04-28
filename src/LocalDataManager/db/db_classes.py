@@ -15,17 +15,20 @@ class File(Base):
     hash: Mapped[str] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(64))
     location: Mapped[Optional[str]]
-    # metadata: Mapped[List["Metadata"]] = relationship(
-    #     back_populates="file", cascade="all, delete-orphan"
-    # )
-    def __repr__(self) -> str:
-        return f"File(hash={self.hash!r}, name={self.name!r}, fullname={self.fullname!r})"
+    file_metadata: Mapped[List["Metadata"]] = relationship(back_populates="file")
 
-# class Metadata(Base):
-#     __tablename__ = "metadata"
-#     id: Mapped[int] = mapped_column(primary_key=True)
-#     email_address: Mapped[str]
-#     user_id: Mapped[int] = mapped_column(ForeignKey("user_account.id"))
-#     file: Mapped["File"] = relationship(back_populates="metadata")
-#     def __repr__(self) -> str:
-#         return f"Metadata(id={self.id!r}, email_address={self.email_address!r})"
+    def __repr__(self) -> str:
+        return f"File(hash={self.hash!r}, name={self.name!r}, location={self.location!r}, metadata={self.file_metadata!r})"
+    
+
+class Metadata(Base):
+    __tablename__ = "file_metadata"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    hash: Mapped[str] = mapped_column(ForeignKey("files.hash"))
+    file: Mapped["File"] = relationship(back_populates="file_metadata")
+    metadata_key: Mapped[Optional[str]] 
+    metadata_value: Mapped[Optional[str]]
+
+
+    def __repr__(self) -> str:
+        return f"Metadata(hash={self.hash!r}, key={self.metadata_key!r}, value={self.metadata_value!r})"
